@@ -32,7 +32,7 @@ impl DMVec2 {
             area += vertices[i].x * vertices[j].y;
             area -= vertices[i].y * vertices[j].x;
         }
-        -area
+        area
     }
 }
 
