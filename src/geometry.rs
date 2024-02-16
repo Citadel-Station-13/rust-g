@@ -21,7 +21,10 @@ struct DMVec2 {
 }
 
 impl DMVec2 {
-    pub fn polygon_area(vertices: &Vec<DMVec2>) -> f64 {
+    /**
+     * input vertices must be specified clockwise!
+     */
+    pub fn polygon_area(vertices: &[DMVec2]) -> f64 {
         let size = vertices.len();
         let mut area: f64 = 0_f64;
         for i in 0..size {
@@ -29,7 +32,7 @@ impl DMVec2 {
             area += vertices[i].x * vertices[j].y;
             area -= vertices[i].y * vertices[j].x;
         }
-        area
+        -area
     }
 }
 
@@ -50,7 +53,7 @@ impl DMGraph {
             edges: Vec::new(),
         };
         building.edges = vec![Vec::new(); size];
-        return building;
+        building
     }
 
     pub fn connect(&mut self, a: usize, b: usize) {
@@ -69,7 +72,10 @@ impl DMGraph {
 
 byond_fn!(
     fn geometry_delaunay_triangulate_to_graph(point_json) {
-        let points: Vec<DMVec2> = serde_json::from_str(point_json).unwrap();
+        let points: Vec<DMVec2> = match serde_json::from_str(point_json) {
+            Ok(r) => r,
+            Err(_) => return Some("error during json decode".to_string()),
+        };
         let transmuted: Vec<Point> = points.iter().map(|p| Point{x: p.x, y: p.y}).collect();
         let triangulated = delaunator::triangulate(&transmuted);
         let mut constructing = DMGraph::empty_of_size(points.len());
@@ -77,11 +83,15 @@ byond_fn!(
             let a = chunk[0];
             let b = chunk[1];
             let c = chunk[2];
-            constructing.connect(a.to_owned(), b.to_owned());
-            constructing.connect(a.to_owned(), c.to_owned());
-            constructing.connect(b.to_owned(), c.to_owned());
+            constructing.connect(a, b);
+            constructing.connect(a, c);
+            constructing.connect(b, c);
         };
-        Some(serde_json::to_string(&constructing).unwrap())
+        let encoded = serde_json::to_string(&constructing);
+        match encoded {
+            Ok(json) => Some(json),
+            Err(nope) => Some(nope.to_string()),
+        }
     }
 );
 
@@ -108,7 +118,10 @@ struct DMDelaunayVoronoiReturn {
 
 byond_fn!(
     fn geometry_delaunay_voronoi_graph(packed) {
-        let unpacked: DMDelaunayVoronoiCall = serde_json::from_str(packed).unwrap();
+        let unpacked: DMDelaunayVoronoiCall = match serde_json::from_str(packed) {
+            Ok(r) => r,
+            Err(_) => return Some("error during json decode".to_string()),
+        };
         let transmuted: Vec<Point> = unpacked.points.iter().map(|p| Point{x: p.x, y: p.y}).collect();
         let mut x_low: f64 = f64::INFINITY;
         let mut x_high: f64 = -f64::INFINITY;
@@ -124,12 +137,15 @@ byond_fn!(
         let center_point = Point{x: x_low + (x_high - x_low) * 0.5, y: y_low + (y_high - y_low) * 0.5};
         let requires_area = unpacked.area != 0_f64;
         let requires_cell = unpacked.cell != 0_f64;
-        let computed = voronoice::VoronoiBuilder::default()
+        let computed = match voronoice::VoronoiBuilder::default()
             .set_sites(transmuted)
             .set_bounding_box(
                 BoundingBox::new(center_point, (x_high - x_low) + margin * 2_f64, (y_high - y_low) + margin * 2_f64)
             )
-            .build().unwrap();
+            .build() {
+            Some(c) => c,
+            None => return Some("error during voronoi solve".to_string()),
+        };
         let count = unpacked.points.len();
         let mut constructing_graph = DMGraph::empty_of_size(count);
         for chunk in computed.triangulation().triangles.chunks_exact(3) {
@@ -162,10 +178,14 @@ byond_fn!(
                 cells_constructed[i] = Some(vertices_constructed);
             }
         }
-        Some(serde_json::to_string(&DMDelaunayVoronoiReturn{
+        let encoded = serde_json::to_string(&DMDelaunayVoronoiReturn{
             graph: constructing_graph,
             areas: areas_constructed,
             cells: cells_constructed,
-        }).unwrap())
+        });
+        match encoded {
+            Ok(r) => Some(r),
+            Err(_) => Some("error during json encode".to_string()),
+        }
     }
 );
