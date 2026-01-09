@@ -93,6 +93,7 @@ default = [
     "git",
     "hash",
     "http",
+    "dep:dmi", # for some reason iconforge holds this
     # "iconforge", we do not use iconforge ere' (not yet at least)
     "json",
     "log",
