@@ -1,4 +1,4 @@
-use num::integer::sqrt;
+use num_integer::sqrt;
 use pathfinding::prelude::astar;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
@@ -8,7 +8,7 @@ use std::rc::Rc;
 use thiserror::Error;
 
 thread_local! {
-static NODES: RefCell<Vec<Option<Rc<Node>>>> = RefCell::new(Vec::new());
+static NODES: RefCell<Vec<Option<Rc<Node>>>> = const { RefCell::new(Vec::new()) };
 }
 
 fn get_nodes_len() -> usize {
@@ -243,7 +243,7 @@ mod tests {
     fn test_register() {
         let json = std::fs::read_to_string("tests/rsc/ai_nodes_info.json").unwrap();
         assert!(register_nodes(&json).is_ok());
-        assert!(NODES.with(|nodes_ref| nodes_ref.borrow().len() != 0))
+        assert!(NODES.with(|nodes_ref| !nodes_ref.borrow().is_empty()))
     }
 
     #[test]
